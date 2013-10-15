@@ -2,6 +2,7 @@ from module import ZarpModule
 from util import init_app
 from re import search
 from util import Error
+from zoption import Zoption
 import abc
 
 
@@ -11,29 +12,18 @@ class DoS(ZarpModule):
 
     def __init__(self, which):
         super(DoS, self).__init__(which)
-        self.target = None
+        self.config.update({"target":Zoption(type = "ip", 
+                                             value = None,
+                                             required = True, 
+                                             display = "Target to DoS")
+                           })
 
     def is_alive(self):
         """Check if the target is alive"""
-        if not self.target is None:
-            rval = init_app('ping -c 1 -w 1 %s' % self.target, True)
+        if not self.config['target'].value is None:
+            rval = init_app('ping -c 1 -w 1 %s' % \
+                            self.config['target'].value, True)
             up = search('\d.*? received', rval)
             if search('0', up.group(0)) is None:
                 return True
         return False
-
-    def get_ip(self):
-        """Fetch the target IP address"""
-        while True:
-            try:
-                tmp = raw_input('[!] Enter target address: ')
-                if len(tmp.split('.')) is 4:
-                    self.target = tmp
-                    break
-                else:
-                    Error("Please enter a valid IP address")
-            except KeyboardInterrupt:
-                self.target = None
-                return
-            except:
-                pass

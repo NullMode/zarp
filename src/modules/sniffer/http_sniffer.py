@@ -4,53 +4,59 @@ from collections import namedtuple
 from config import pptable
 from sniffer import Sniffer
 from scapy.all import *
+from zoption import Zoption
 
 
 class http_sniffer(Sniffer):
-    """HTTP sniffer that allows various verbosity levels
-    """
     def __init__(self):
-        self.verbs    = ['Site Only', 'Request String', 'Request and Payload',
-                          'Session IDs', 'Custom Regex']
-        self.verb     = 0
-        self.sessions = {}
-        self.regex    = None
         super(http_sniffer, self).__init__('HTTP Sniffer')
+        self.sessions = {}
+        self.config.update({"verb":Zoption(type = "int",
+                                    value = 1,
+                                    required = False,
+                                    display = "Output verbosity",
+                                    opts = ['Site Only', 'Request String', 
+                                             'Request and Payload',
+                                             'Session IDs', 'Custom Regex'
+                                            ]),
+                            "regex":Zoption(type = "regex",
+                                     value = None,
+                                     required = False,
+                                     display = "Regex for level 5 verbosity"),
+                            'port':Zoption(type = "int",
+                                           value = 80,
+                                           required = False,
+                                           display = "Port to sniff on")
+            })
+        self.info = """ 
+                    The HTTP sniffer is a fairly robust sniffer module that
+                    supports various methods of parsing up data, including:
+                        [*] Site Only
+                            This level will only parse out the website/host in
+                            the packet's request.
+                        [*] Request string
+                            This will parse out and store the entire request string.
+                        [*] Request and Payload
+                            Included in this level from the last is the actual
+                            payload of the request.
+                        [*] Session ID
+                            Still a work in progress, but this will attempt to
+                            parse out MOST standard session ID variables.  This
+                            will store them in a pretty table that you can drag up
+                            when viewing the module.
+                        [*] Custom regex
+                            This allows the user to insert a custom regex string,
+                            in Python form, that will then parse and display
+                            matches."""
 
     def initialize(self):
         """Initialize the sniffer"""
-        self.get_ip()
-        while True:
-            try:
-                util.Msg('Enter verbosity level: ')
-                for i in range(1, len(self.verbs) + 1):
-                    print '\t[%d] %s' % (i, self.verbs[i - 1])
-                self.verb = int(raw_input('> ')) - 1
-
-                if self.verb >= len(self.verbs):
-                    util.Error('Input incorrect.')
-                    continue
-
-                if self.verb is 4:
-                    self.regex = raw_input('[!] Enter regex: ')
-                    self.regex = re.compile(self.regex)
-                break
-            except KeyboardInterrupt:
-                return
-            except Exception, j:
-                print type(j)
-                pass
-
-        util.Msg('Output dumping in \'%s\' verbosity.' % self.verbs[self.verb])
-        tmp = raw_input('[!] Sniff HTTP traffic from %s.  Is this correct? '
-                        % (self.source))
-
-        if 'n' in tmp.lower():
-            return None
-
-        self.sniff_filter = "tcp and dst port 80 and src %s" % self.source
+        self.sniff_filter = "tcp and dst port %s and src %s" % \
+                                        (self.config['port'].value,
+                                         self.config['target'].value)
         self.run()
-        return self.source
+        util.Msg("Running HTTP sniffer...")
+        return True
 
     def manage_sessions(self, data):
         """ Parse and manage session IDs.
@@ -82,26 +88,27 @@ class http_sniffer(Sniffer):
         """ Based on what verbosity level is set, parse
             the packet and return formatted data.
         """
-        data = pkt.getlayer(Raw).load
-        if self.verb is 0:
+        verb = self.config['verb'].value
+        data = pkt.getlayer(Raw).load.rstrip()
+        if verb is 1:
             # parse the site only
             data = re.findall('Host: (.*)', data)
             if len(data) > 0:
                 data = data[0]
             else:
                 data = None
-        elif self.verb is 1:
+        elif verb is 2:
             data = data.split('\n')
             if len(data) > 0:
                 data = data[0]
             else:
                 data = None
-        elif self.verb is 2:
+        elif verb is 3:
             pass
-        elif self.verb is 3:
+        elif verb is 4:
             data = self.manage_sessions(data)
-        elif self.verb is 4:
-            data = self.regex.search(data)
+        elif verb is 5:
+            data = self.config['regex'].value.search(data)
             if not data is None:
                 data = data.group(0)
         return data
@@ -121,7 +128,7 @@ class http_sniffer(Sniffer):
         """ Overload view so we can print out
             sessions in a pretty table.
         """
-        if self.verb is 3:
+        if self.config['verb'].value is 4:
             Setting = namedtuple('Setting', ['Host', 'SessionID'])
             table = []
             for i in self.sessions.keys():
@@ -135,4 +142,5 @@ class http_sniffer(Sniffer):
         """ Overloaded to return both the sniffed
             address and the verbosity.
         """
-        return '%s [%s]' % (self.source, self.verbs[self.verb])
+        return '%s [%s]' % (self.config['target'].value, 
+                    self.config['verb'].opts[self.config['verb'].value-1])

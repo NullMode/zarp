@@ -2,18 +2,24 @@ import util
 import socket
 from service import Service
 from threading import Thread
+from zoption import Zoption
 
 
 class ftp(Service):
-    """ Emulates a single threaded FTP
-        service.
-    """
     def __init__(self):
-        self.motd = 'b4ll4stS3c FTP Server v1.4'
+        super(ftp, self).__init__('FTP Server')
         self.usr = None
         self.pwd = None
         self.server_socket = None
-        super(ftp, self).__init__('FTP Server')
+        self.config['port'].value = 21
+        self.config.update({"motd":Zoption(type = "str", 
+                                  value = "b4ll4stS3c FTP Server v1.4",
+                                  required = False,
+                                  display = "Displayed MOTD")
+                        })
+        self.info = """
+                    Emulates a single threaded FTP server.
+                    """
 
     def response(self, con, code, txt):
         """ Format a response to the client """
@@ -57,7 +63,7 @@ class ftp(Service):
         self.server_sock = socket.socket()
         self.server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
-            self.server_sock.bind(('', 21))
+            self.server_sock.bind(('', self.config['port'].value))
         except:
             util.Error('Cannot bind to address.')
             return
@@ -73,7 +79,7 @@ class ftp(Service):
                 except:
                     continue
                 self.log_msg('Connection from %s' % str(addr))
-                self.response(conn, 220, self.motd)
+                self.response(conn, 220, self.config['motd'].value)
 
                 while self.running:
                     try:

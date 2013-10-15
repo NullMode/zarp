@@ -3,17 +3,25 @@ import socket
 from colors import color
 from service import Service
 from threading import Thread
+from zoption import Zoption
 
 
 class telnet(Service):
-    """ Simple telnet emulator; just grabs a username/password
-        and denies access.  Could be extended to be a sort of
-        honeypot system.
-    """
     def __init__(self):
+        super(telnet, self).__init__('telnet server')
         self.server_thread = None
         self.server_socket = None
-        super(telnet, self).__init__('telnet server')
+        self.config['port'].value = 23
+        self.config.update({"server":Zoption(type = "str",
+                                      value = "Unified",
+                                      required = False,
+                                      display = "Server title to spoof")
+                           })
+        self.info = """
+                    Simple telnet emulator; just grabs a username/password
+                    and denies access.  Could be extended to be a sort of
+                    honeypot system.
+                    """
 
     def response(self, con, msg):
         """ Respond to connection
@@ -36,7 +44,7 @@ class telnet(Service):
         self.server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
         try:
-            self.server_sock.bind(('', 23))
+            self.server_sock.bind(('', self.config['port'].value))
         except:
             util.Error('Cannot bind to address.')
             return
@@ -58,12 +66,14 @@ class telnet(Service):
                 while self.running:
                     try:
                         # username/password prompt
-                        self.response(con, 'Unified Username: ')
+                        self.response(con, '%s Username: ' % 
+                                                self.config['server'].value)
                         username = con.recv(256).strip().replace('\n', '')
                         if len(username) < 1:
                             continue
 
-                        self.response(con, 'Unified Password: ')
+                        self.response(con, '%s Password: ' % 
+                                                self.config['server'].value)
                         password = con.recv(256).strip().replace('\n', '')
                         if len(password) < 1:
                             continue
