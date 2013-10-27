@@ -78,9 +78,9 @@ class dlink_backdoor(RouterVuln):
 
             thread = Thread(target=self.dlinkproxy.run)
             thread.start()
-
-        return True
-
+	    return True
+       else:
+           return False
 
     def shutdown(self):
         """ Shuts down the module safely
