@@ -437,7 +437,7 @@ def eval_type(value, type):
                 rval = (False, None)
     elif type == "port":
         port = int(value)
-        if 0 > port <= 65535:
+        if 0 < port <= 65535:
             rval = (True, port)
         else:
             rval = (False, None)
