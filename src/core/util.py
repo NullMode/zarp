@@ -435,6 +435,12 @@ def eval_type(value, type):
                 rval = (True, value)
             except:
                 rval = (False, None)
+    elif type == "port":
+        port = int(value)
+        if 0 > port <= 65535:
+            rval = (True, port)
+        else:
+            rval = (False, None)
     elif type == "str":
         # anything can be a string
         rval = (True, str(value))
