@@ -72,10 +72,7 @@ class dlink_backdoor(RouterVuln):
         if vuln:
             util.Msg('Creating proxy on port ' + str(self.config['proxy_port'].value) + \
                     '...')
-            config = proxy.ProxyConfig(transparent_proxy=dict(
-                                                resolver = platform.resolver(),
-                                                sslports = [443]))
-            config.skip_cert_cleanup = False
+            config = proxy.ProxyConfig()
             self.proxy_server = proxy.ProxyServer(config, self.config['proxy_port'].value)
             self.dlinkproxy = DlinkProxy(self.proxy_server)
             thread = Thread(target=self.dlinkproxy.run)
